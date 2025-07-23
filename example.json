@@ -1,0 +1,42 @@
+{
+  "packages": {
+    "rltoolbox_components": {
+      "path": "/Users/lucamignatti/Projects/RLtoolbox-components",
+      "components": [
+        "networks.MLPAC.MLPAC",
+        "environments.gymnasium.GymnasiumEnvironment"
+      ]
+    }
+  },
+  "components": {
+    "actor_critic": {
+      "package": "rltoolbox_components",
+      "type": "networks.MLPAC.MLPAC",
+      "input_dim": 8,
+      "output_dim": 4,
+      "hidden_dims": [128, 128]
+    },
+    "env": {
+      "package": "rltoolbox_components",
+      "type": "environments.gymnasium.GymnasiumEnvironment",
+      "env_name": "LunarLander-v3"
+    }
+  },
+  "hooks": {
+    "training_start": [],
+    "episode_reset": ["env"],
+    "environment_step": ["env"],
+    "action_selection": ["actor_critic"],
+    "transition_received": [],
+    "episode_end": []
+  },
+  "training": {
+    "max_episodes": 1000,
+    "max_steps_per_episode": 500
+  },
+  "evaluation": {
+    "enabled": true,
+    "num_episodes": 10
+  },
+  "seed": 42
+}
