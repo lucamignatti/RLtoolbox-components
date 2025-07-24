@@ -1,10 +1,11 @@
 {
   "packages": {
     "rltoolbox_components": {
-      "path": "/Users/lucamignatti/Projects/RLtoolbox-components",
+      "version": "0.1.0",
       "components": [
         "networks.MLPAC.MLPAC",
-        "environments.gymnasium.GymnasiumEnvironment"
+        "environments.gymnasium.GymnasiumEnvironment",
+        "algorithms.ppo.PPO"
       ]
     }
   },
@@ -20,6 +21,20 @@
       "package": "rltoolbox_components",
       "type": "environments.gymnasium.GymnasiumEnvironment",
       "env_name": "LunarLander-v3"
+    },
+    "ppo": {
+      "package": "rltoolbox_components",
+      "type": "algorithms.ppo.PPO",
+      "actor_critic": "actor_critic",
+      "learning_rate": 0.0003,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "clip_ratio": 0.2,
+      "value_loss_coef": 0.5,
+      "entropy_coef": 0.01,
+      "num_epochs": 10,
+      "batch_size": 64,
+      "update_freq": 2048
     }
   },
   "hooks": {
@@ -27,8 +42,8 @@
     "episode_reset": ["env"],
     "environment_step": ["env"],
     "action_selection": ["actor_critic"],
-    "transition_received": [],
-    "episode_end": []
+    "experience_storage": ["ppo"],
+    "episode_end": ["ppo"]
   },
   "training": {
     "max_episodes": 1000,
