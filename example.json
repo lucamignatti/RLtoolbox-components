@@ -5,7 +5,8 @@
       "components": [
         "networks.MLPAC.MLPAC",
         "environments.gymnasium.GymnasiumEnvironment",
-        "algorithms.ppo.PPO"
+        "algorithms.ppo.PPO",
+        "loggers.console.ConsoleLogger"
       ]
     }
   },
@@ -35,6 +36,10 @@
       "num_epochs": 10,
       "batch_size": 64,
       "update_frequency": 2048
+    },
+    "logger": {
+      "package": "rltoolbox_components",
+      "type": "loggers.console.ConsoleLogger"
     }
   },
   "hooks": {
@@ -43,7 +48,7 @@
     "environment_step": ["env"],
     "action_selection": ["actor_critic"],
     "experience_storage": ["ppo"],
-    "episode_end": ["ppo"]
+    "episode_end": ["ppo", "logger"]
   },
   "training": {
     "max_episodes": 10000,
