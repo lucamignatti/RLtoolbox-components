@@ -5,7 +5,7 @@ import torch.nn as nn
 import numpy as np
 
 class RolloutBuffer:
-    def __init__(self, gamma, device: torch.device = None, update_frequency: int = 1):
+    def __init__(self, gamma, gae_lambda, device: torch.device = None, update_frequency: int = 1):
         self.device = device
         self.states = []
         self.actions = []
@@ -16,6 +16,7 @@ class RolloutBuffer:
         self.returns = []
         self.advantages = []
 
+        self.gae_lambda = gae_lambda
         self.gamma = gamma
         self.update_frequency = update_frequency
 
@@ -27,7 +28,7 @@ class RolloutBuffer:
         self.state_values.clear()
         self.dones.clear()
         self.returns.clear()
-        self.advantages.clear()
+        self.advantages = []
 
     def add(self, state: torch.Tensor, action: torch.Tensor, logprob: torch.Tensor, reward: float, state_value: torch.Tensor, done: bool):
         if self.device is None:
@@ -48,7 +49,7 @@ class RolloutBuffer:
         state_values_tensor = torch.stack(self.state_values)
         dones_tensor = torch.stack(self.dones)
 
-        self.compute_returns_and_advantages(last_value)
+        self.compute_returns_and_advantages(last_value, state_values_tensor)
 
         return {
             "actions": actions_tensor.cpu().numpy(),
@@ -64,28 +65,26 @@ class RolloutBuffer:
     def __len__(self):
         return len(self.states)
 
-    def compute_returns_and_advantages(self, last_value):
+    def compute_returns_and_advantages(self, last_value, state_values_tensor):
+        last_value = last_value.detach().cpu().numpy().item()  # Ensure scalar
+        rewards = torch.stack(self.rewards).cpu().numpy()
+        dones = torch.stack(self.dones).cpu().numpy()
+        state_values = state_values_tensor.cpu().numpy().squeeze(-1)  # Ensure 1D
 
-        next_return = 0.0 if self.dones[-1] else last_value.detach().cpu().numpy()
+        advantages = np.zeros_like(rewards, dtype=np.float32)
+        last_gae_lam = 0
+        for t in reversed(range(len(rewards))):
+            if t == len(rewards) - 1:
+                next_non_terminal = 1.0 - dones[t]
+                next_values = last_value
+            else:
+                next_non_terminal = 1.0 - dones[t+1]
+                next_values = state_values[t+1]
+            delta = rewards[t] + self.gamma * next_values * next_non_terminal - state_values[t]
+            advantages[t] = last_gae_lam = delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae_lam
+        self.returns = (advantages + state_values).tolist()
+        self.advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8).tolist()
 
-        buffer_size = len(self.rewards)
-
-        self.returns = []
-        self.advantages = []
-
-        for i in reversed(range(buffer_size)):
-            self.returns.append((self.rewards[i] + self.gamma * next_return * (1 - int(self.dones[i]))).cpu().numpy())
-
-            self.advantages.append((self.returns[buffer_size-i-1] - self.state_values[i].cpu().numpy()))
-
-            next_return = self.returns[buffer_size-i-1]
-
-        self.advantages = (self.advantages - np.mean(self.advantages)) / (np.std(self.advantages) + 1e-8)
-
-        self.advantages = self.advantages.tolist()
-
-        self.returns = self.returns[::-1]
-        self.advantages = self.advantages[::-1]
     def is_full(self):
         return len(self.states) >= self.update_frequency
 
@@ -109,7 +108,7 @@ class PPO(RLComponent):
         self.num_epochs = config.get("num_epochs", 10)
         self.batch_size = config.get("batch_size", 64)
 
-        self.rollout_buffer = RolloutBuffer(device =self._device, gamma=self.gamma, update_frequency=config.get("update_frequency", 1))
+        self.rollout_buffer = RolloutBuffer(device =self._device, gamma=self.gamma, gae_lambda=self.gae_lambda, update_frequency=config.get("update_frequency", 1))
 
         self.actor_critic = config.get("actor_critic", None)
 

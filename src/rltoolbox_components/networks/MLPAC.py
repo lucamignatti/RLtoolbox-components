@@ -37,8 +37,8 @@ class MLPAC(nn.Module, RLComponent):
     def action_selection(self, context: Dict):
         with torch.no_grad():
             x = self.network(torch.tensor(context["state"], dtype=torch.float32).to(self.device))
-            logits = self.actor(x).detach()
-            value = self.critic(x).detach()
+            logits = self.actor(x)
+            value = self.critic(x)
 
         distribution = torch.distributions.Categorical(logits=logits)
         action = distribution.sample()
