@@ -27,7 +27,7 @@ class RolloutBuffer:
         self.rewards.clear()
         self.state_values.clear()
         self.dones.clear()
-        self.returns.clear()
+        self.returns = []
         self.advantages = []
 
     def add(self, state: torch.Tensor, action: torch.Tensor, logprob: torch.Tensor, reward: float, state_value: torch.Tensor, done: bool):
@@ -42,7 +42,7 @@ class RolloutBuffer:
         self.dones.append(torch.tensor(done, device=self.device))
 
     def get(self, last_value):
-        states_tensor = torch.stack(self.states)
+        states_tensor = torch.tensor(np.array(self.states), dtype=torch.float32, device=self.device)
         actions_tensor = torch.stack(self.actions)
         logprobs_tensor = torch.stack(self.logprobs)
         rewards_tensor = torch.stack(self.rewards)
@@ -52,38 +52,38 @@ class RolloutBuffer:
         self.compute_returns_and_advantages(last_value, state_values_tensor)
 
         return {
-            "actions": actions_tensor.cpu().numpy(),
-            "states": states_tensor.cpu().numpy(),
-            "logprobs": logprobs_tensor.cpu().numpy(),
-            "rewards": rewards_tensor.cpu().numpy(),
-            "state_values": state_values_tensor.cpu().numpy(),
-            "dones": dones_tensor.cpu().numpy(),
-            "returns": np.array(self.returns),
-            "advantages": np.array(self.advantages)
+            "actions": actions_tensor,
+            "states": states_tensor,
+            "logprobs": logprobs_tensor,
+            "rewards": rewards_tensor,
+            "state_values": state_values_tensor,
+            "dones": dones_tensor,
+            "returns": self.returns,
+            "advantages": self.advantages
         }
 
     def __len__(self):
         return len(self.states)
 
     def compute_returns_and_advantages(self, last_value, state_values_tensor):
-        last_value = last_value.detach().cpu().numpy().item()  # Ensure scalar
-        rewards = torch.stack(self.rewards).cpu().numpy()
-        dones = torch.stack(self.dones).cpu().numpy()
-        state_values = state_values_tensor.cpu().numpy().squeeze(-1)  # Ensure 1D
+        last_value = last_value.detach().item()
+        rewards = torch.stack(self.rewards)
+        dones = torch.stack(self.dones)
+        state_values = state_values_tensor.squeeze(-1)
 
-        advantages = np.zeros_like(rewards, dtype=np.float32)
+        advantages = torch.zeros_like(rewards, dtype=torch.float32)
         last_gae_lam = 0
         for t in reversed(range(len(rewards))):
             if t == len(rewards) - 1:
-                next_non_terminal = 1.0 - dones[t]
+                next_non_terminal = 1.0 - dones[t].float()
                 next_values = last_value
             else:
-                next_non_terminal = 1.0 - dones[t+1]
+                next_non_terminal = 1.0 - dones[t+1].float()
                 next_values = state_values[t+1]
             delta = rewards[t] + self.gamma * next_values * next_non_terminal - state_values[t]
             advantages[t] = last_gae_lam = delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae_lam
-        self.returns = (advantages + state_values).tolist()
-        self.advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8).tolist()
+        self.returns = advantages + state_values
+        self.advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-8)
 
     def is_full(self):
         return len(self.states) >= self.update_frequency
@@ -129,11 +129,15 @@ class PPO(RLComponent):
         last_value = model.forward_critic(torch.tensor(last_state, dtype=torch.float32, device= self._device))
         buffer = self.rollout_buffer.get(last_value)
 
-        states = torch.tensor(buffer["states"], dtype=torch.float32, device=self._device)
-        actions = torch.tensor(buffer["actions"], dtype=torch.float32, device=self._device)
-        logprobs = torch.tensor(buffer["logprobs"], dtype=torch.float32, device = self._device)
-        returns = torch.tensor(buffer["returns"], dtype=torch.float32, device=self._device)
-        advantages = torch.tensor(buffer["advantages"], dtype=torch.float32, device=self._device)
+        states = buffer["states"]
+        actions = buffer["actions"]
+        logprobs = buffer["logprobs"]
+        returns = buffer["returns"]
+        advantages = buffer["advantages"]
+
+        total_policy_loss = 0.0
+        total_value_loss = 0.0
+        num_updates = 0
 
         for _ in range(self.num_epochs):
             indices = np.arange(len(states))
@@ -165,23 +169,39 @@ class PPO(RLComponent):
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+
+                total_policy_loss += policy_loss.item()
+                total_value_loss += value_loss.item()
+                num_updates += 1
+
         self.rollout_buffer.clear()
+
+        avg_policy_loss = total_policy_loss / num_updates
+        avg_value_loss = total_value_loss / num_updates
+
+        return avg_policy_loss, avg_value_loss
 
     def episode_end(self, context: Dict):
         model = context["components"][self.actor_critic]
         last_state = context["next_state"]
         if self._should_update():
-            self.train(model, last_state)
+            policy_loss, value_loss = self.train(model, last_state)
+            if 'policy_loss' not in context['metrics']:
+                context['metrics']['policy_loss'] = []
+            context['metrics']['policy_loss'].append(policy_loss)
+            if 'value_loss' not in context['metrics']:
+                context['metrics']['value_loss'] = []
+            context['metrics']['value_loss'].append(value_loss)
 
     def _should_update(self):
         return self.rollout_buffer.is_full()
 
     def experience_storage(self, context: Dict):
         self.rollout_buffer.add(
-            state=torch.tensor(context["state"], dtype=torch.float32, device=self._device),
-            action=torch.tensor(context["action"], dtype=torch.float32, device=self._device),
-            logprob=torch.tensor(context["log_probs"], dtype=torch.float32, device=self._device),
+            state=context["state"],
+            action=context["action"],
+            logprob=context["log_probs"],
             reward=context["reward"],
-            state_value=torch.tensor(context["state_value"], dtype=torch.float32, device=self._device),
+            state_value=context["state_value"],
             done=context["done"]
         )

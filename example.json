@@ -6,7 +6,8 @@
         "networks.MLPAC.MLPAC",
         "environments.gymnasium.GymnasiumEnvironment",
         "algorithms.ppo.PPO",
-        "loggers.console.ConsoleLogger"
+        "loggers.console.ConsoleLogger",
+        "loggers.grapher.GraphLogger"
       ]
     }
   },
@@ -16,7 +17,7 @@
       "type": "networks.MLPAC.MLPAC",
       "input_dim": 8,
       "output_dim": 4,
-      "hidden_dims": [128, 128]
+      "hidden_dims": [64, 64]
     },
     "env": {
       "package": "rltoolbox_components",
@@ -27,19 +28,23 @@
       "package": "rltoolbox_components",
       "type": "algorithms.ppo.PPO",
       "actor_critic": "actor_critic",
-      "learning_rate": 0.0001,
+      "learning_rate": 0.0003,
       "gamma": 0.99,
       "gae_lambda": 0.95,
       "clip_ratio": 0.2,
       "value_loss_coef": 0.5,
       "entropy_coef": 0.01,
       "num_epochs": 10,
-      "batch_size": 64,
-      "update_frequency": 2048
+      "batch_size": 256,
+      "update_frequency": 512
     },
-    "logger": {
+    "consolelogger": {
       "package": "rltoolbox_components",
       "type": "loggers.console.ConsoleLogger"
+    },
+    "graphlogger": {
+      "package": "rltoolbox_components",
+      "type": "loggers.grapher.GraphLogger"
     }
   },
   "hooks": {
@@ -48,10 +53,11 @@
     "environment_step": ["env"],
     "action_selection": ["actor_critic"],
     "experience_storage": ["ppo"],
-    "episode_end": ["ppo", "logger"]
+    "episode_end": ["ppo", "consolelogger", "graphlogger"],
+    "training_end": ["graphlogger"]
   },
   "training": {
-    "max_episodes": 10000,
+    "max_episodes": 5000,
     "max_steps_per_episode": 500
   },
   "evaluation": {

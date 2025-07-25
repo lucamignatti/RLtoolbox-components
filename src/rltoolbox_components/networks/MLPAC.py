@@ -26,7 +26,7 @@ class MLPAC(nn.Module, RLComponent):
         self.critic = nn.Linear(hidden_dims[-1], 1).to(self.device)
 
     def forward(self, x):
-        x.to(self.device)
+        # x.to(self.device)
         x = self.network(x)
         logits = self.actor(x)
         distribution = torch.distributions.Categorical(logits=logits)
@@ -36,7 +36,7 @@ class MLPAC(nn.Module, RLComponent):
 
     def action_selection(self, context: Dict):
         with torch.no_grad():
-            x = self.network(torch.tensor(context["state"], dtype=torch.float32).to(self.device))
+            x = self.network(torch.tensor(context["state"], dtype=torch.float32, device=self.device))
             logits = self.actor(x)
             value = self.critic(x)
 
@@ -44,9 +44,9 @@ class MLPAC(nn.Module, RLComponent):
         action = distribution.sample()
         log_probs = distribution.log_prob(action)
 
-        context['log_probs'] = log_probs.cpu().numpy()
-        context['state_value'] = value.cpu().numpy()
-        context['action'] = action.cpu().numpy()
+        context['log_probs'] = log_probs
+        context['state_value'] = value
+        context['action'] = action
 
     def forward_actor(self, x):
         x.to(self.device)

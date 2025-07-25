@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 from rltoolbox import RLComponent
 from typing import Dict
+import torch
 
 class GymnasiumEnvironment(RLComponent):
     def __init__(self, config: Dict):
@@ -24,7 +25,10 @@ class GymnasiumEnvironment(RLComponent):
         context['info'] = info
 
     def environment_step(self, context: Dict):
-        obs, reward, terminated, truncated, info = self.env.step(context['action'])
+        action = context['action']
+        if isinstance(action, torch.Tensor):
+            action = action.cpu().numpy()
+        obs, reward, terminated, truncated, info = self.env.step(action)
         context['next_state'] = obs
         context['reward'] = reward
         context['done'] = terminated or truncated
