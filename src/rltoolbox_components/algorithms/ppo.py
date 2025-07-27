@@ -37,9 +37,9 @@ class RolloutBuffer:
         self.states.append(state)
         self.actions.append(action)
         self.logprobs.append(logprob)
-        self.rewards.append(torch.tensor(reward, device=self.device))
+        self.rewards.append(torch.tensor(reward, dtype=torch.float32, device=self.device))
         self.state_values.append(state_value)
-        self.dones.append(torch.tensor(done, device=self.device))
+        self.dones.append(torch.tensor(done, dtype=torch.bool, device=self.device))
 
     def get(self, last_value):
         states_tensor = torch.tensor(np.array(self.states), dtype=torch.float32, device=self.device)

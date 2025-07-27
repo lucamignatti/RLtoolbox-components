@@ -57,7 +57,7 @@
     "training_end": ["graphlogger"]
   },
   "training": {
-    "max_episodes": 5000,
+    "max_episodes": 10000,
     "max_steps_per_episode": 500
   },
   "evaluation": {
