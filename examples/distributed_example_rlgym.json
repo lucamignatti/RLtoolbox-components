@@ -3,9 +3,9 @@
     "rltoolbox_components": {
       "version": "0.1.0",
       "components": [
-        "networks.MLPAC.MLPAC",
+        "networks.MLPADC.MLPADC",
         "environments.rlgym.RLGymEnvironment",
-        "algorithms.ppo.PPO",
+        "algorithms.dppo.DPPO",
         "loggers.console.ConsoleLogger",
         "loggers.grapher.GraphLogger"
       ]
@@ -14,10 +14,14 @@
   "components": {
     "actor_critic": {
       "package": "rltoolbox_components",
-      "type": "networks.MLPAC.MLPAC",
+      "type": "networks.MLPADC.MLPADC",
       "input_dim": 132,
       "output_dim": 90,
-      "hidden_dims": [1024, 1024, 1024]
+      "hidden_dims": [1024, 1024, 1024],
+      "v_min": -15.0,
+      "v_max": 15.0,
+      "num_atoms": 51,
+      "advantage_calculation_method": "quantile_sampling"
     },
     "env": {
       "package": "rltoolbox_components",
@@ -30,9 +34,9 @@
       "goal_reward": 10,
       "touch_reward": 0.1
     },
-    "ppo": {
+    "dppo": {
       "package": "rltoolbox_components",
-      "type": "algorithms.ppo.PPO",
+      "type": "algorithms.dppo.DPPO",
       "actor_critic": "actor_critic",
       "learning_rate": 0.0003,
       "gamma": 0.99,
@@ -42,7 +46,21 @@
       "entropy_coef": 0.01,
       "num_epochs": 10,
       "batch_size": 256,
-      "update_frequency": 512
+      "update_frequency": 2048,
+      "max_grad_norm": 0.5,
+      "v_min": -15.0,
+      "v_max": 15.0,
+      "num_atoms": 51,
+      "use_adaptive_epsilon": true,
+      "adaptive_epsilon_beta": 1.0,
+      "epsilon_min": 0.05,
+      "epsilon_max": 0.3,
+      "use_confidence_weighting": true,
+      "confidence_weight_type": "entropy",
+      "confidence_weight_delta": 1e-6,
+      "normalize_confidence_weights": false,
+      "advantage_calculation_method": "quantile_sampling",
+      "reward_norm_G_max": 10.0
     },
     "consolelogger": {
       "package": "rltoolbox_components",
@@ -58,8 +76,8 @@
     "episode_reset": ["env"],
     "environment_step": ["env"],
     "action_selection": ["actor_critic"],
-    "experience_storage": ["ppo"],
-    "episode_end": ["ppo", "consolelogger", "graphlogger"],
+    "experience_storage": ["dppo"],
+    "episode_end": ["dppo", "consolelogger", "graphlogger"],
     "training_end": ["graphlogger"]
   },
   "training": {
