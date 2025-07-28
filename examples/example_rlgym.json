@@ -1,0 +1,74 @@
+{
+  "packages": {
+    "rltoolbox_components": {
+      "version": "0.1.0",
+      "components": [
+        "networks.MLPAC.MLPAC",
+        "environments.rlgym.RLGymEnvironment",
+        "algorithms.ppo.PPO",
+        "loggers.console.ConsoleLogger",
+        "loggers.grapher.GraphLogger"
+      ]
+    }
+  },
+  "components": {
+    "actor_critic": {
+      "package": "rltoolbox_components",
+      "type": "networks.MLPAC.MLPAC",
+      "input_dim": 132,
+      "output_dim": 90,
+      "hidden_dims": [64, 64]
+    },
+    "env": {
+      "package": "rltoolbox_components",
+      "type": "environments.rlgym.RLGymEnvironment",
+      "team_size": 2,
+      "spawn_opponents": true,
+      "action_repeat": 8,
+      "no_touch_timeout_seconds": 30,
+      "game_timeout_seconds": 300,
+      "goal_reward": 10,
+      "touch_reward": 0.1
+    },
+    "ppo": {
+      "package": "rltoolbox_components",
+      "type": "algorithms.ppo.PPO",
+      "actor_critic": "actor_critic",
+      "learning_rate": 0.0003,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "clip_ratio": 0.2,
+      "value_loss_coef": 0.5,
+      "entropy_coef": 0.01,
+      "num_epochs": 10,
+      "batch_size": 256,
+      "update_frequency": 512
+    },
+    "consolelogger": {
+      "package": "rltoolbox_components",
+      "type": "loggers.console.ConsoleLogger"
+    },
+    "graphlogger": {
+      "package": "rltoolbox_components",
+      "type": "loggers.grapher.GraphLogger"
+    }
+  },
+  "hooks": {
+    "training_start": [],
+    "episode_reset": ["env"],
+    "environment_step": ["env"],
+    "action_selection": ["actor_critic"],
+    "experience_storage": ["ppo"],
+    "episode_end": ["ppo", "consolelogger", "graphlogger"],
+    "training_end": ["graphlogger"]
+  },
+  "training": {
+    "max_episodes": 10000,
+    "max_steps_per_episode": 500
+  },
+  "evaluation": {
+    "enabled": true,
+    "num_episodes": 10
+  },
+  "seed": 42
+}
