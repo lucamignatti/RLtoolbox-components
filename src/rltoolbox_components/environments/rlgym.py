@@ -3,6 +3,7 @@ from rlgym.rocket_league.action_parsers import LookupTableAction, RepeatAction
 from rlgym.rocket_league.done_conditions import GoalCondition, NoTouchTimeoutCondition, TimeoutCondition, AnyCondition
 from rlgym.rocket_league.obs_builders import DefaultObs
 from rlgym.rocket_league.reward_functions import CombinedReward, GoalReward, TouchReward
+from rlgym.api.config.reward_function import RewardFunction
 from rlgym.rocket_league.sim import RocketSimEngine
 from rlgym.rocket_league.state_mutators import MutatorSequence, FixedTeamSizeMutator, KickoffMutator
 from rlgym.rocket_league import common_values
@@ -10,6 +11,48 @@ import numpy as np
 from rltoolbox import RLComponent
 from typing import Dict
 import torch
+
+class BallProximityReward(RewardFunction):
+    """Reward function that gives reward based on proximity to the ball."""
+
+    def __init__(self, max_distance=5000):
+        """
+        Initialize ball proximity reward.
+
+        Args:
+            max_distance: Maximum distance for reward calculation (default: 5000)
+        """
+        super().__init__()
+        self.max_distance = max_distance
+
+    def reset(self, agents, initial_state, shared_info):
+        """Reset the reward function."""
+        pass
+
+    def get_rewards(self, agents, state, is_terminated, is_truncated, shared_info):
+        """Calculate reward based on distance to ball for each agent."""
+        rewards = {}
+
+        # Get ball position (already a numpy array)
+        ball_pos = state.ball.position
+
+        for agent in agents:
+            # Get player data for this agent
+            player = state.cars[agent]
+
+            # Get player position (already a numpy array)
+            player_pos = player.physics.position
+
+            # Calculate distance
+            distance = np.linalg.norm(player_pos - ball_pos)
+
+            # Normalize distance and invert (closer = higher reward)
+            normalized_distance = min(distance / self.max_distance, 1.0)
+            reward = 1.0 - normalized_distance
+
+            rewards[agent] = reward
+
+        return rewards
 
 class RLGymEnvironment(RLComponent):
     def __init__(self, config: Dict):
@@ -25,6 +68,7 @@ class RLGymEnvironment(RLComponent):
                 - game_timeout_seconds: Maximum game length (default: 300)
                 - goal_reward: Reward for scoring a goal (default: 10)
                 - touch_reward: Reward for touching the ball (default: 0.1)
+                - ball_proximity_reward: Reward multiplier for being close to ball (default: 0.01)
         """
         super().__init__(config)
 
@@ -36,6 +80,7 @@ class RLGymEnvironment(RLComponent):
         self.game_timeout_seconds = config.get('game_timeout_seconds', 300)
         self.goal_reward = config.get('goal_reward', 10)
         self.touch_reward = config.get('touch_reward', 0.1)
+        self.ball_proximity_reward = config.get('ball_proximity_reward', 0.01)
 
         # Build the environment
         self.env = self._build_rlgym_environment()
@@ -82,10 +127,11 @@ class RLGymEnvironment(RLComponent):
             TimeoutCondition(timeout_seconds=self.game_timeout_seconds)
         )
 
-        # Reward function (goals + ball touches)
+        # Reward function (goals + ball touches + ball proximity)
         reward_fn = CombinedReward(
             (GoalReward(), self.goal_reward),
-            (TouchReward(), self.touch_reward)
+            (TouchReward(), self.touch_reward),
+            (BallProximityReward(), self.ball_proximity_reward)
         )
 
         # Observation builder with normalized values
