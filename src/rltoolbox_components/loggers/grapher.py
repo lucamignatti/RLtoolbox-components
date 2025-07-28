@@ -2,6 +2,7 @@ from rltoolbox import RLComponent
 from typing import Dict
 import matplotlib.pyplot as plt
 import numpy as np
+import datetime
 
 class GraphLogger(RLComponent):
     def __init__(self, config: Dict):
@@ -70,5 +71,7 @@ class GraphLogger(RLComponent):
             loss_axes.legend()
             loss_axes.grid(True)
 
+        now = datetime.datetime.now()
+        plt.savefig(f'training_loss_{now.strftime("%Y%m%d_%H%M%S")}.png')
         plt.tight_layout()
         plt.show()
